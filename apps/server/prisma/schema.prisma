@@ -1,0 +1,33 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  name          String?
+  password      String?   // Optional, as users via OAuth might not have one
+  
+  refreshToken  String?   @unique
+  
+  emailVerified Boolean   @default(false)
+  verifyToken   String?   @unique
+
+  provider      String?   // e.g., "local", "google", "facebook"
+  providerId    String?   // User's unique ID from the OAuth provider
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([provider, providerId]) // Ensures a user is unique per provider
+  @@map("users")
+}
