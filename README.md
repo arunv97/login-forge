@@ -1,90 +1,192 @@
-# LoginForge
+**README: LoginForge Full-Stack Application**
 
-<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
+This document outlines the steps to install, configure, and run the LoginForge application locally.
 
-✨ Your new, shiny [Nx workspace](https://nx.dev) is almost ready ✨.
+**I. Prerequisites**
 
-[Learn more about this workspace setup and its capabilities](https://nx.dev/nx-api/js?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
+Before you begin, ensure you have the following installed on your system:
 
-## Finish your CI setup
+1.  **Node.js:** Version 18.x or higher (includes npm). We recommend using a Node Version Manager like `nvm`.
+2.  **pnpm:** This project uses `pnpm` as its package manager. If you don't have it, install it globally:
+    ```bash
+    npm install -g pnpm
+    ```
+3.  **Docker and Docker Compose:** Required for running the PostgreSQL database and pgAdmin.
+    - Install Docker Desktop (which includes Docker Compose): [https://www.docker.com/products/docker-desktop/](https://www.docker.com/products/docker-desktop/)
+4.  **Git:** For cloning the repository.
 
-[Click here to finish setting up your workspace!](https://cloud.nx.app/connect/FoOQm9mD5t)
+**II. Getting Started**
 
+1.  **Clone the Repository:**
 
-## Generate a library
+    ```bash
+    git clone <your-repository-url>
+    cd login-forge # Or your repository's root directory name
+    ```
 
-```sh
-npx nx g @nx/js:lib packages/pkg1 --publishable --importPath=@my-org/pkg1
-```
+2.  **Install Dependencies:**
+    From the root directory of the project, run:
+    ```bash
+    pnpm install
+    ```
+    This will install all necessary dependencies for the monorepo, including frontend, backend, and development tools.
 
-## Run tasks
+**III. Configuration**
 
-To build the library use:
+1.  **Backend Environment Variables:**
 
-```sh
-npx nx build pkg1
-```
+    - Navigate to the server application's directory: `cd apps/server`
+    - You will find an `.env.template` file. Copy this file to a new file named `.env`:
+      ```bash
+      cp .env.template .env
+      ```
+    - Open the newly created `.env` file and fill in the required values.
+      It should look like this:
 
-To run any task with Nx use:
+      ```env
+      # Database connection - These should match your docker-compose.yml
+      DATABASE_URL="postgresql://user_loginforge:password_loginforge@localhost:5432/db_loginforge?schema=public"
 
-```sh
-npx nx <target> <project-name>
-```
+      # JWT Authentication
+      JWT_SECRET="generate_a_strong_random_secret_key_for_jwt" # IMPORTANT: Change this!
+      JWT_EXPIRATION_TIME="3600s" # e.g., 1 hour
+      JWT_REFRESH_SECRET="generate_a_different_strong_random_secret_for_refresh_tokens" # IMPORTANT: Change this! (Will be used later)
 
-These targets are either [inferred automatically](https://nx.dev/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or defined in the `project.json` or `package.json` files.
+      # OAuth Configuration (Google)
+      # You will need to create your own OAuth 2.0 Client ID and Secret
+      # in the Google Cloud Console for your development environment.
+      # Follow the project's internal documentation or ask a team member for guidance
+      # on setting up your personal Google OAuth credentials for development.
+      GOOGLE_CLIENT_ID="YOUR_DEV_GOOGLE_CLIENT_ID"
+      GOOGLE_CLIENT_SECRET="YOUR_DEV_GOOGLE_CLIENT_SECRET"
+      GOOGLE_CALLBACK_URL="http://localhost:3000/api/auth/google/callback" # Should match your GCP config
 
-[More about running tasks in the docs &raquo;](https://nx.dev/features/run-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+      # Application
+      PORT=3000
+      NODE_ENV="development"
+      FRONTEND_URL="http://localhost:4200" # Default frontend URL for redirects
+      ```
 
-## Versioning and releasing
+    - **CRITICAL:**
+      - Replace `"generate_a_strong_random_secret_key_for_jwt"` and `"generate_a_different_strong_random_secret_for_refresh_tokens"` with actual strong, random secret keys. You can use an online generator or a command like `openssl rand -hex 32`.
+      - For `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, each team member will likely need to set up their **own** Google Cloud OAuth 2.0 credentials for their local development environment. This is because redirect URIs are often tied to `localhost` and specific ports, and sharing a single dev credential can lead to quota issues or conflicts. Provide internal team documentation or instructions on how they can obtain these.
+    - Navigate back to the project root: `cd ../..`
 
-To version and release the library use
+2.  **Prisma: Generate Client**
+    After installing dependencies, and ensuring your `apps/server/.env` has the `DATABASE_URL`, generate the Prisma client:
+    ```bash
+    pnpm prisma generate
+    ```
+    _(This command should be run from the workspace root, and it will use the schema location defined in your root `package.json`'s `prisma` field, or you can target it: `pnpm nx exec server -- pnpx prisma generate --schema=./prisma/schema.prisma`)_
 
-```
-npx nx release
-```
+**IV. Running the Application Locally**
 
-Pass `--dry-run` to see what would happen without actually releasing the library.
+This project is configured to run the database (PostgreSQL & pgAdmin) via Docker Compose and the backend server.
 
-[Learn more about Nx release &raquo;](hhttps://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+1.  **Start Database and Backend Server (Recommended for Development):**
+    From the project root, run:
 
-## Keep TypeScript project references up to date
+    ```bash
+    pnpm nx serve-dev server
+    ```
 
-Nx automatically updates TypeScript [project references](https://www.typescriptlang.org/docs/handbook/project-references.html) in `tsconfig.json` files to ensure they remain accurate based on your project dependencies (`import` or `require` statements). This sync is automatically done when running tasks such as `build` or `typecheck`, which require updated references to function correctly.
+    This command will:
 
-To manually trigger the process to sync the project graph dependencies information to the TypeScript project references, run the following command:
+    - Start the Docker containers for PostgreSQL and pgAdmin in the background (if not already running).
+    - Wait for the PostgreSQL database to be healthy.
+    - Apply any pending database migrations automatically (see "Database Migrations" below).
+    - Build and start the NestJS backend server (typically on `http://localhost:3000`).
+    - The server will watch for changes and hot-reload.
 
-```sh
-npx nx sync
-```
+    You should see logs indicating:
 
-You can enforce that the TypeScript project references are always in the correct state when running in CI by adding a step to your CI job configuration that runs the following command:
+    - Docker containers starting.
+    - NestJS application starting, listing available API routes and the Swagger UI URL.
 
-```sh
-npx nx sync:check
-```
+2.  **Running the Frontend (Client) Application:**
+    In a **separate terminal window/tab**, from the project root, run:
+    ```bash
+    pnpm nx serve client
+    ```
+    This will start the React frontend development server (typically on `http://localhost:4200`).
 
-[Learn more about nx sync](https://nx.dev/reference/nx-commands#sync)
+**V. Accessing the Applications**
 
+- **Backend API (NestJS):** `http://localhost:3000/api`
+- **API Documentation (Swagger UI):** `http://localhost:3000/api/docs`
+- **pgAdmin (Database GUI):** `http://localhost:5050`
+  - Login with email: `admin@example.com` and password: `admin` (or as configured in `docker-compose.yml`).
+  - Connect to the database server:
+    - Host: `postgres`
+    - Port: `5432`
+    - Maintenance DB: `db_loginforge`
+    - Username: `user_loginforge`
+    - Password: `password_loginforge`
+- **Frontend Application (React):** `http://localhost:4200`
 
-[Learn more about Nx on CI](https://nx.dev/ci/intro/ci-with-nx#ready-get-started-with-your-provider?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+**VI. Database Migrations**
 
-## Install Nx Console
+- The initial database schema is set up. When you run `pnpm nx serve-dev server`, it should ideally include a step to run migrations if configured, or you might need to do it manually the first time if the `serve-dev` script doesn't explicitly include it yet.
+- **To apply migrations manually (if needed, e.g., first setup or after pulling schema changes):**
+  From the project root:
+  ```bash
+  pnpm nx exec server -- pnpx prisma migrate dev --name init # Or a descriptive name for new migrations
+  ```
+  _(Or, more simply if your root `package.json`'s `prisma.schema` points correctly: `pnpm prisma migrate dev --name init`)_
 
-Nx Console is an editor extension that enriches your developer experience. It lets you run tasks, generate code, and improves code autocompletion in your IDE. It is available for VSCode and IntelliJ.
+**VII. Stopping the Development Environment**
 
-[Install Nx Console &raquo;](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+1.  **Stop the Frontend Server:** Press `Ctrl+C` in the terminal where `pnpm nx serve client` is running.
+2.  **Stop the Backend Server:** Press `Ctrl+C` in the terminal where `pnpm nx serve-dev server` is running.
+3.  **Stop Docker Containers (Database & pgAdmin):**
+    From the project root, run:
+    ```bash
+    pnpm nx stop-db server
+    ```
+    Or directly:
+    ```bash
+    docker-compose down
+    ```
 
-## Useful links
+**VIII. Linting and Testing**
 
-Learn more:
+- **Lint:**
+  ```bash
+  pnpm nx lint server
+  pnpm nx lint client
+  ```
+- **Run Backend Tests:**
+  ```bash
+  pnpm nx test server
+  ```
+- **Run Frontend Tests:**
+  ```bash
+  pnpm nx test client
+  ```
+- **Run Backend E2E Tests:**
+  ```bash
+  pnpm nx e2e server-e2e
+  ```
+- **Run Frontend E2E Tests (Playwright):**
+  ```bash
+  pnpm nx e2e client-e2e
+  ```
 
-- [Learn more about this workspace setup](https://nx.dev/nx-api/js?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects)
-- [Learn about Nx on CI](https://nx.dev/ci/intro/ci-with-nx?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Releasing Packages with Nx release](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [What are Nx plugins?](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+---
 
-And join the Nx community:
-- [Discord](https://go.nx.dev/community)
-- [Follow us on X](https://twitter.com/nxdevtools) or [LinkedIn](https://www.linkedin.com/company/nrwl)
-- [Our Youtube channel](https://www.youtube.com/@nxdevtools)
-- [Our blog](https://nx.dev/blog?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+**Notes on the README:**
+
+- **Clarity on Google Credentials:** It's important to emphasize that each developer needs their own Google OAuth credentials for `localhost` development. You might even link to internal documentation on how your team handles this.
+- **Database Migrations in `serve-dev`:**
+  Currently, the `serve-dev` script for the server (`docker-compose up -d --wait postgres`, then `nx serve server`) does _not_ automatically run `prisma migrate dev`. You might want to add it.
+  If you want to include automatic migration in `serve-dev`, you could modify the `commands` in `apps/server/project.json`:
+  ```json
+        "commands": [
+          "docker-compose up -d --wait postgres",
+          "pnpx prisma migrate deploy --schema=./apps/server/prisma/schema.prisma", // Use deploy for non-interactive
+          "nx serve server"
+        ],
+  ```
+  Or, for development, you might prefer `prisma migrate dev` but it's interactive. `prisma migrate deploy` is generally for CI/CD or production-like environments as it applies pending migrations without prompting. For local dev, prompting developers to run `migrate dev` manually after pulling changes that affect the schema is also a common workflow.
+- **Prisma Generate:** I added a step for `pnpm prisma generate` as it's crucial after `pnpm install`.
+- **Simpler Prisma Commands:** If you have `"prisma": { "schema": "apps/server/prisma/schema.prisma" }` in your **root `package.json`**, then commands like `pnpm prisma generate` and `pnpm prisma migrate dev` can often be run from the root without specifying the schema path, as the Prisma CLI will pick it up.
