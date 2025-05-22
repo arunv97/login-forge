@@ -4,6 +4,7 @@
   "license": "MIT",
   "scripts": {},
   "private": true,
+  "prisma": { "schema": "apps/server/prisma/schema.prisma" },
   "devDependencies": {
     "@emotion/babel-plugin": "11.11.0",
     "@eslint/js": "^9.8.0",
@@ -65,10 +66,12 @@
     "@emotion/react": "11.11.1",
     "@emotion/styled": "11.11.0",
     "@nestjs/common": "^10.0.2",
+    "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^10.0.2",
     "@nestjs/jwt": "^11.0.0",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^10.0.2",
+    "@nestjs/swagger": "^11.2.0",
     "@prisma/client": "^6.8.2",
     "axios": "^1.6.0",
     "bcrypt": "^6.0.0",
@@ -80,6 +83,7 @@
     "react-dom": "19.0.0",
     "react-router-dom": "6.29.0",
     "reflect-metadata": "^0.1.13",
-    "rxjs": "^7.8.0"
+    "rxjs": "^7.8.0",
+    "swagger-ui-express": "^5.0.1"
   }
 }
