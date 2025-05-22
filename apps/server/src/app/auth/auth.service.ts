@@ -5,18 +5,18 @@ import {
   InternalServerErrorException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { RegisterUserDto } from './dto/register-user.dto';
-import { UserService } from '../user/user.service';
+import { RegisterUserDto } from '@auth/dto/register-user.dto';
+import { UserService } from '@user/user.service';
 import * as bcrypt from 'bcrypt';
 import { User as PrismaUser } from '@prisma/client';
 import {
   RegistrationResponseDto,
   SafeUserDto,
   LoginResponseDto,
-} from './dto/auth-response.dto';
+} from '@auth/dto/auth-response.dto';
 import { JwtService } from '@nestjs/jwt';
-import { LoginUserDto } from './dto/login-user.dto';
-import { CreateUserDto } from '../user/dto/create-user.dto';
+import { LoginUserDto } from '@auth/dto/login-user.dto';
+import { CreateUserDto } from '@user/dto/create-user.dto';
 import { ConfigService } from '@nestjs/config';
 
 export interface GoogleProfile {

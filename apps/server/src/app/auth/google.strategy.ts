@@ -2,8 +2,8 @@ import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { Strategy, Profile, VerifyCallback } from 'passport-google-oauth20';
 import { ConfigService } from '@nestjs/config';
-import { AuthService, GoogleProfile } from './auth.service';
-import { LoginResponseDto } from './dto/auth-response.dto';
+import { AuthService, GoogleProfile } from '@auth/auth.service';
+import { LoginResponseDto } from '@auth/dto/auth-response.dto';
 
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
@@ -30,8 +30,8 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   }
 
   async validate(
-    _accessToken: string, // Google's access token, often prefixed with _ if not used directly
-    _refreshToken: string | undefined, // Google's refresh token
+    _accessToken: string,
+    _refreshToken: string | undefined,
     profile: Profile,
     done: VerifyCallback
   ): Promise<void> {
@@ -59,7 +59,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     try {
       const loginResponse: LoginResponseDto =
         await this.authService.handleGoogleLogin(googleProfileData);
-      done(null, loginResponse); // Pass the entire LoginResponseDto
+      done(null, loginResponse);
     } catch (err) {
       done(err as Error, undefined);
     }

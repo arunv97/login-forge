@@ -13,18 +13,15 @@ import {
   ApiTags,
   ApiOperation,
   ApiResponse,
-  ApiBearerAuth,
   ApiExcludeEndpoint,
 } from '@nestjs/swagger';
-import { RegisterUserDto } from './dto/register-user.dto';
-import { AuthService } from './auth.service';
+import { RegisterUserDto } from '@auth/dto/register-user.dto';
+import { AuthService } from '@auth/auth.service';
 import {
   RegistrationResponseDto,
   LoginResponseDto,
-  SafeUserDto,
-} from './dto/auth-response.dto';
-import { LoginUserDto } from './dto/login-user.dto';
-import { JwtAuthGuard } from './jwt-auth.guard';
+} from '@auth/dto/auth-response.dto';
+import { LoginUserDto } from '@auth/dto/login-user.dto';
 import type { Request, Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
 
@@ -79,23 +76,6 @@ export class AuthController {
     return this.authService.login(loginUserDto);
   }
 
-  @Get('profile')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get current user profile' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Returns the authenticated user profile.',
-    type: SafeUserDto,
-  })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'Unauthorized. Token is missing, invalid, or expired.',
-  })
-  getProfile(@Req() req: Request): SafeUserDto {
-    return req.user as SafeUserDto;
-  }
-
   @Get('google')
   @UseGuards(AuthGuard('google'))
   @ApiOperation({ summary: 'Initiate Google OAuth2 login flow' })
@@ -114,11 +94,9 @@ export class AuthController {
     @Req() req: Request,
     @Res() res: Response
   ): Promise<void> {
-    const loginResponse = req.user as LoginResponseDto; // req.user is now LoginResponseDto
+    const loginResponse = req.user as LoginResponseDto;
 
     if (!loginResponse || !loginResponse.accessToken) {
-      // Handle error case: loginResponse or accessToken is unexpectedly missing
-      // You might redirect to an error page on the frontend
       const errorFrontendUrl = `${this.authService.configService.get<string>(
         'FRONTEND_URL',
         'http://localhost:4200'

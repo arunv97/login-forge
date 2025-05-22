@@ -1,21 +1,24 @@
-import { Injectable, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  ExecutionContext,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { SafeUserDto } from './dto/auth-response.dto'; 
-import { JsonWebTokenError, TokenExpiredError } from 'jsonwebtoken'; 
+import { SafeUserDto } from '@auth/dto/auth-response.dto';
+import { JsonWebTokenError, TokenExpiredError } from 'jsonwebtoken';
+
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
   override canActivate(
-    context: ExecutionContext,
+    context: ExecutionContext
   ): boolean | Promise<boolean> | ReturnType<typeof super.canActivate> {
     return super.canActivate(context);
   }
 
   override handleRequest<TUser = SafeUserDto>(
-    err: Error | null, 
-    user: SafeUserDto | false | null, 
-    info: Error | JsonWebTokenError | TokenExpiredError | undefined, 
-    // context: ExecutionContext, // context is available but not strictly needed in this override
-    // status?: any, // status is available but not strictly needed
+    err: Error | null,
+    user: SafeUserDto | false | null,
+    info: Error | JsonWebTokenError | TokenExpiredError | undefined
   ): TUser {
     if (err || !user) {
       if (info instanceof TokenExpiredError) {
@@ -26,6 +29,6 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       }
       throw err || new UnauthorizedException('User is not authorized.');
     }
-    return user as TUser; 
+    return user as TUser;
   }
 }

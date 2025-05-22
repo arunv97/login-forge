@@ -10,9 +10,9 @@ import {
   StrategyOptionsWithoutRequest,
 } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
-import { UserService } from '../user/user.service';
+import { UserService } from '@user/user.service';
 import { User as PrismaUser } from '@prisma/client';
-import { SafeUserDto } from './dto/auth-response.dto';
+import { SafeUserDto } from '@auth/dto/auth-response.dto';
 
 export interface JwtPayload {
   email: string;
@@ -25,7 +25,7 @@ export interface JwtPayload {
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
-    private readonly configService: ConfigService, 
+    private readonly configService: ConfigService,
     private readonly userService: UserService
   ) {
     const jwtSecret = configService.get<string>('JWT_SECRET');
@@ -34,7 +34,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         'JWT_SECRET environment variable is not set.'
       );
     }
-
 
     const strategyOptions: StrategyOptionsWithoutRequest = {
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),

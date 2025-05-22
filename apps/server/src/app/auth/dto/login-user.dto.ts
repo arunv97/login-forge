@@ -15,11 +15,10 @@ export class LoginUserDto {
     example: 'P@$$wOrd123',
     description: 'The password of the user.',
     required: true,
-    minLength: 8, // While login doesn't strictly need minLength for validation against DB,
-    // it's good for consistency with registration and client-side hints.
+    minLength: 8,
   })
   @IsNotEmpty({ message: 'Password should not be empty.' })
   @IsString()
-  @MinLength(8, { message: 'Password must be at least 8 characters.' }) // Optional: for basic format check
+  @MinLength(8, { message: 'Password must be at least 8 characters.' })
   password!: string;
 }

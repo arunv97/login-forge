@@ -1,20 +1,21 @@
 import { Injectable, ConflictException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { User } from '@prisma/client';
-import { CreateUserDto } from './dto/create-user.dto';
+import { PrismaService } from '@prisma-setup/prisma.service';
+import { User as PrismaUser } from '@prisma/client';
+import { CreateUserDto } from '@user/dto/create-user.dto';
+import { UpdateUserDto } from '@user/dto/update-user.dto';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 @Injectable()
 export class UserService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findByEmail(email: string): Promise<User | null> {
+  async findByEmail(email: string): Promise<PrismaUser | null> {
     return this.prisma.user.findUnique({
       where: { email },
     });
   }
 
-  async findById(id: string): Promise<User | null> {
+  async findById(id: string): Promise<PrismaUser | null> {
     return this.prisma.user.findUnique({
       where: { id },
     });
@@ -23,7 +24,7 @@ export class UserService {
   async findByProviderId(
     provider: string,
     providerId: string
-  ): Promise<User | null> {
+  ): Promise<PrismaUser | null> {
     return this.prisma.user.findUnique({
       where: {
         provider_providerId: {
@@ -34,7 +35,7 @@ export class UserService {
     });
   }
 
-  async create(data: CreateUserDto): Promise<User> {
+  async create(data: CreateUserDto): Promise<PrismaUser> {
     try {
       const user = await this.prisma.user.create({
         data: {
@@ -63,5 +64,14 @@ export class UserService {
       }
       throw error;
     }
+  }
+
+  async updateUser(userId: string, data: UpdateUserDto): Promise<PrismaUser> {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        name: data.name,
+      },
+    });
   }
 }
