@@ -1,11 +1,32 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, Get, UseGuards, Req } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  Controller,
+  Post,
+  Body,
+  HttpCode,
+  HttpStatus,
+  Get,
+  UseGuards,
+  Req,
+  Res,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiExcludeEndpoint,
+} from '@nestjs/swagger';
 import { RegisterUserDto } from './dto/register-user.dto';
 import { AuthService } from './auth.service';
-import { RegistrationResponseDto, LoginResponseDto, SafeUserDto } from './dto/auth-response.dto';
+import {
+  RegistrationResponseDto,
+  LoginResponseDto,
+  SafeUserDto,
+} from './dto/auth-response.dto';
 import { LoginUserDto } from './dto/login-user.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
+import { AuthGuard } from '@nestjs/passport';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -33,7 +54,7 @@ export class AuthController {
     description: 'An internal error occurred.',
   })
   async register(
-    @Body() registerUserDto: RegisterUserDto,
+    @Body() registerUserDto: RegisterUserDto
   ): Promise<RegistrationResponseDto> {
     return this.authService.register(registerUserDto);
   }
@@ -73,5 +94,44 @@ export class AuthController {
   })
   getProfile(@Req() req: Request): SafeUserDto {
     return req.user as SafeUserDto;
+  }
+
+  @Get('google')
+  @UseGuards(AuthGuard('google'))
+  @ApiOperation({ summary: 'Initiate Google OAuth2 login flow' })
+  @ApiResponse({
+    status: 302,
+    description: 'Redirects to Google for authentication.',
+  })
+  async googleAuth(): Promise<void> {
+    /* Intentionally empty */
+  }
+
+  @Get('google/callback')
+  @UseGuards(AuthGuard('google'))
+  @ApiExcludeEndpoint()
+  async googleAuthRedirect(
+    @Req() req: Request,
+    @Res() res: Response
+  ): Promise<void> {
+    const loginResponse = req.user as LoginResponseDto; // req.user is now LoginResponseDto
+
+    if (!loginResponse || !loginResponse.accessToken) {
+      // Handle error case: loginResponse or accessToken is unexpectedly missing
+      // You might redirect to an error page on the frontend
+      const errorFrontendUrl = `${this.authService.configService.get<string>(
+        'FRONTEND_URL',
+        'http://localhost:4200'
+      )}/auth/oauth-error`;
+      res.redirect(errorFrontendUrl);
+      return;
+    }
+
+    const token = loginResponse.accessToken;
+    const frontendUrl = this.authService.configService.get<string>(
+      'FRONTEND_URL',
+      'http://localhost:4200'
+    );
+    res.redirect(`${frontendUrl}/auth/oauth-callback?token=${token}`);
   }
 }

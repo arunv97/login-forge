@@ -20,6 +20,20 @@ export class UserService {
     });
   }
 
+  async findByProviderId(
+    provider: string,
+    providerId: string
+  ): Promise<User | null> {
+    return this.prisma.user.findUnique({
+      where: {
+        provider_providerId: {
+          provider,
+          providerId,
+        },
+      },
+    });
+  }
+
   async create(data: CreateUserDto): Promise<User> {
     try {
       const user = await this.prisma.user.create({
@@ -29,6 +43,7 @@ export class UserService {
           password: data.password,
           provider: data.provider || 'local',
           providerId: data.providerId,
+          emailVerified: data.provider !== 'local' ? true : false,
         },
       });
       return user;
@@ -38,6 +53,11 @@ export class UserService {
           const target = error.meta?.target as string[] | undefined;
           if (target?.includes('email')) {
             throw new ConflictException('User with this email already exists.');
+          }
+          if (target?.includes('provider') && target?.includes('providerId')) {
+            throw new ConflictException(
+              'This provider account is already linked to a user.'
+            );
           }
         }
       }
