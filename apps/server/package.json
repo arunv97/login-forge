@@ -41,14 +41,38 @@
           }
         }
       },
+      "db-migrate-deploy": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "pnpm exec prisma migrate deploy --schema ./apps/server/prisma/schema.prisma",
+          "cwd": "."
+        }
+      },
+      "db-migrate-dev": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "pnpm exec prisma migrate dev --schema ./apps/server/prisma/schema.prisma",
+          "cwd": "."
+        }
+      },
+      "db-generate": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "pnpm exec prisma generate --schema ./apps/server/prisma/schema.prisma",
+          "cwd": "."
+        }
+      },
       "serve-dev": {
         "executor": "nx:run-commands",
         "options": {
           "commands": [
             "docker-compose up -d --wait",
+            "nx run server:db-migrate-deploy",
+            "nx run server:db-generate",
             "nx serve server"
           ],
-          "parallel": false
+          "parallel": false,
+          "cwd": "."
         }
       },
       "stop-db": {

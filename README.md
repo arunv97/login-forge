@@ -6,21 +6,22 @@ This document outlines the steps to install, configure, and run the LoginForge a
 
 Before you begin, ensure you have the following installed on your system:
 
-1.  **Node.js:** Version 18.x or higher (includes npm). We recommend using a Node Version Manager like `nvm`.
+1.  **Node.js:** Version 18.x or higher (includes npm). We recommend using a Node Version Manager like `nvm` ([nvm-sh/nvm on GitHub](https://github.com/nvm-sh/nvm)).
 2.  **pnpm:** This project uses `pnpm` as its package manager. If you don't have it, install it globally:
     ```bash
     npm install -g pnpm
     ```
+    (See: [pnpm Installation](https://pnpm.io/installation))
 3.  **Docker and Docker Compose:** Required for running the PostgreSQL database and pgAdmin.
-    - Install Docker Desktop (which includes Docker Compose): [https://www.docker.com/products/docker-desktop/](https://www.docker.com/products/docker-desktop/)
-4.  **Git:** For cloning the repository.
+    - Install Docker Desktop (which includes Docker Compose): [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+4.  **Git:** For cloning the repository. ([Git SCM](https://git-scm.com/))
 
 **II. Getting Started**
 
 1.  **Clone the Repository:**
 
     ```bash
-    git clone <your-repository-url>
+    git clone https://github.com/arunv97/login-forge.git
     cd login-forge # Or your repository's root directory name
     ```
 
@@ -40,8 +41,8 @@ Before you begin, ensure you have the following installed on your system:
       ```bash
       cp .env.template .env
       ```
-    - Open the newly created `.env` file and fill in the required values.
-      It should look like this:
+    - Open the newly created `.env` file (e.g., `apps/server/.env`) and fill in the required values.
+      It should look similar to this:
 
       ```env
       # Database connection - These should match your docker-compose.yml
@@ -53,58 +54,52 @@ Before you begin, ensure you have the following installed on your system:
       JWT_REFRESH_SECRET="generate_a_different_strong_random_secret_for_refresh_tokens" # IMPORTANT: Change this! (Will be used later)
 
       # OAuth Configuration (Google)
-      # You will need to create your own OAuth 2.0 Client ID and Secret
-      # in the Google Cloud Console for your development environment.
-      # Follow the project's internal documentation or ask a team member for guidance
-      # on setting up your personal Google OAuth credentials for development.
+      # Each team member needs their own Google Cloud OAuth 2.0 credentials for local development.
+      # See internal documentation or Google Cloud Console for setup.
       GOOGLE_CLIENT_ID="YOUR_DEV_GOOGLE_CLIENT_ID"
       GOOGLE_CLIENT_SECRET="YOUR_DEV_GOOGLE_CLIENT_SECRET"
-      GOOGLE_CALLBACK_URL="http://localhost:3000/api/auth/google/callback" # Should match your GCP config
+      GOOGLE_CALLBACK_URL="http://localhost:3000/api/auth/google/callback" # Ensure this matches your GCP config
 
       # Application
       PORT=3000
       NODE_ENV="development"
-      FRONTEND_URL="http://localhost:4200" # Default frontend URL for redirects
+      FRONTEND_URL="http://localhost:4200" # Default frontend URL for OAuth redirects
       ```
 
     - **CRITICAL:**
-      - Replace `"generate_a_strong_random_secret_key_for_jwt"` and `"generate_a_different_strong_random_secret_for_refresh_tokens"` with actual strong, random secret keys. You can use an online generator or a command like `openssl rand -hex 32`.
-      - For `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, each team member will likely need to set up their **own** Google Cloud OAuth 2.0 credentials for their local development environment. This is because redirect URIs are often tied to `localhost` and specific ports, and sharing a single dev credential can lead to quota issues or conflicts. Provide internal team documentation or instructions on how they can obtain these.
+      - Replace placeholder JWT secrets with actual strong, random keys (e.g., use `openssl rand -hex 32` in your terminal to generate one).
+      - For `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, each developer must obtain their own credentials from the [Google Cloud Console](https://console.cloud.google.com/) for their local development environment. This prevents quota issues and conflicts. Ensure "Authorized redirect URIs" in your Google Cloud OAuth settings exactly matches `GOOGLE_CALLBACK_URL`.
     - Navigate back to the project root: `cd ../..`
 
-2.  **Prisma: Generate Client**
-    After installing dependencies, and ensuring your `apps/server/.env` has the `DATABASE_URL`, generate the Prisma client:
+2.  **Prisma Client Generation (Handled by `serve-dev`):**
+    The `pnpm nx serve-dev server` command (see below) will automatically run `prisma generate`. If you need to run it manually for any reason:
     ```bash
-    pnpm prisma generate
+    pnpm nx db-generate server
     ```
-    _(This command should be run from the workspace root, and it will use the schema location defined in your root `package.json`'s `prisma` field, or you can target it: `pnpm nx exec server -- pnpx prisma generate --schema=./prisma/schema.prisma`)_
+    This uses the Prisma schema located at `apps/server/prisma/schema.prisma`. (Learn more: [Prisma Client](https://www.prisma.io/docs/concepts/components/prisma-client))
 
 **IV. Running the Application Locally**
 
-This project is configured to run the database (PostgreSQL & pgAdmin) via Docker Compose and the backend server.
-
 1.  **Start Database and Backend Server (Recommended for Development):**
-    From the project root, run:
+    From the project root directory, run:
 
     ```bash
     pnpm nx serve-dev server
     ```
 
-    This command will:
+    This single command orchestrates the following:
 
-    - Start the Docker containers for PostgreSQL and pgAdmin in the background (if not already running).
-    - Wait for the PostgreSQL database to be healthy.
-    - Apply any pending database migrations automatically (see "Database Migrations" below).
-    - Build and start the NestJS backend server (typically on `http://localhost:3000`).
-    - The server will watch for changes and hot-reload.
+    - Starts the Docker containers for PostgreSQL and pgAdmin in the background (if not already running). See [Docker Compose CLI reference](https://docs.docker.com/compose/reference/).
+    - Waits for the PostgreSQL database to report as healthy.
+    - Applies any pending database migrations using `prisma migrate deploy`.
+    - Generates the Prisma Client to ensure it's in sync with the schema.
+    - Builds and starts the NestJS backend server (typically on `http://localhost:3000`).
+    - The server will watch for code changes and attempt to hot-reload.
 
-    You should see logs indicating:
-
-    - Docker containers starting.
-    - NestJS application starting, listing available API routes and the Swagger UI URL.
+    You should see console output indicating Docker containers starting, migrations applying, Prisma Client generating, and then the NestJS application bootstrapping with its available routes.
 
 2.  **Running the Frontend (Client) Application:**
-    In a **separate terminal window/tab**, from the project root, run:
+    In a **separate terminal window/tab**, from the project root directory, run:
     ```bash
     pnpm nx serve client
     ```
@@ -113,80 +108,61 @@ This project is configured to run the database (PostgreSQL & pgAdmin) via Docker
 **V. Accessing the Applications**
 
 - **Backend API (NestJS):** `http://localhost:3000/api`
-- **API Documentation (Swagger UI):** `http://localhost:3000/api/docs`
-- **pgAdmin (Database GUI):** `http://localhost:5050`
-  - Login with email: `admin@example.com` and password: `admin` (or as configured in `docker-compose.yml`).
-  - Connect to the database server:
-    - Host: `postgres`
+- **API Documentation (Swagger UI):** `http://localhost:3000/api/docs` (Powered by [NestJS Swagger](https://docs.nestjs.com/openapi/introduction))
+- **pgAdmin (Database GUI):** `http://localhost:5050` ([pgAdmin Official Site](https://www.pgadmin.org/))
+  - Initial Login: email `admin@example.com`, password `admin` (or as configured in `docker-compose.yml`).
+  - To connect to the project database:
+    - Server Name (for display): `LoginForgeDB_Docker` (or any name you prefer)
+    - Host name/address: `postgres` (this is the Docker service name)
     - Port: `5432`
-    - Maintenance DB: `db_loginforge`
+    - Maintenance database: `db_loginforge`
     - Username: `user_loginforge`
     - Password: `password_loginforge`
 - **Frontend Application (React):** `http://localhost:4200`
 
 **VI. Database Migrations**
 
-- The initial database schema is set up. When you run `pnpm nx serve-dev server`, it should ideally include a step to run migrations if configured, or you might need to do it manually the first time if the `serve-dev` script doesn't explicitly include it yet.
-- **To apply migrations manually (if needed, e.g., first setup or after pulling schema changes):**
-  From the project root:
+- **Automatic Application:** The `pnpm nx serve-dev server` command automatically applies existing, committed migrations using `prisma migrate deploy`.
+- **Creating New Migrations (When You Change `schema.prisma`):**
+  If you modify `apps/server/prisma/schema.prisma`, you need to generate a new migration file. From the project root, run:
   ```bash
-  pnpm nx exec server -- pnpx prisma migrate dev --name init # Or a descriptive name for new migrations
+  pnpm nx db-migrate-dev server --name "your-descriptive-migration-name"
   ```
-  _(Or, more simply if your root `package.json`'s `prisma.schema` points correctly: `pnpm prisma migrate dev --name init`)_
+  (Or just `pnpm nx db-migrate-dev server` and Prisma CLI will prompt for a name).
+  Commit the generated migration files in `apps/server/prisma/migrations/` along with your schema changes. (Learn more: [Prisma Migrate](https://www.prisma.io/docs/concepts/components/prisma-migrate))
 
 **VII. Stopping the Development Environment**
 
 1.  **Stop the Frontend Server:** Press `Ctrl+C` in the terminal where `pnpm nx serve client` is running.
 2.  **Stop the Backend Server:** Press `Ctrl+C` in the terminal where `pnpm nx serve-dev server` is running.
 3.  **Stop Docker Containers (Database & pgAdmin):**
-    From the project root, run:
+    From the project root directory, run:
     ```bash
     pnpm nx stop-db server
     ```
-    Or directly:
-    ```bash
-    docker-compose down
-    ```
+    (Alternatively, `docker-compose down` from the root will also work).
 
-**VIII. Linting and Testing**
+**VIII. Development Workflow Tools (Nx)**
 
-- **Lint:**
+This project uses [Nx - Smart Monorepos. Fast CI.](https://nx.dev/) for workspace management.
+
+- **Linting:**
   ```bash
   pnpm nx lint server
   pnpm nx lint client
+  # To lint all affected projects: pnpm nx affected:lint
   ```
-- **Run Backend Tests:**
+- **Testing (Unit/Integration):**
   ```bash
   pnpm nx test server
-  ```
-- **Run Frontend Tests:**
-  ```bash
   pnpm nx test client
+  # To test all affected projects: pnpm nx affected:test
   ```
-- **Run Backend E2E Tests:**
-  ```bash
-  pnpm nx e2e server-e2e
-  ```
-- **Run Frontend E2E Tests (Playwright):**
-  ```bash
-  pnpm nx e2e client-e2e
-  ```
-
----
-
-**Notes on the README:**
-
-- **Clarity on Google Credentials:** It's important to emphasize that each developer needs their own Google OAuth credentials for `localhost` development. You might even link to internal documentation on how your team handles this.
-- **Database Migrations in `serve-dev`:**
-  Currently, the `serve-dev` script for the server (`docker-compose up -d --wait postgres`, then `nx serve server`) does _not_ automatically run `prisma migrate dev`. You might want to add it.
-  If you want to include automatic migration in `serve-dev`, you could modify the `commands` in `apps/server/project.json`:
-  ```json
-        "commands": [
-          "docker-compose up -d --wait postgres",
-          "pnpx prisma migrate deploy --schema=./apps/server/prisma/schema.prisma", // Use deploy for non-interactive
-          "nx serve server"
-        ],
-  ```
-  Or, for development, you might prefer `prisma migrate dev` but it's interactive. `prisma migrate deploy` is generally for CI/CD or production-like environments as it applies pending migrations without prompting. For local dev, prompting developers to run `migrate dev` manually after pulling changes that affect the schema is also a common workflow.
-- **Prisma Generate:** I added a step for `pnpm prisma generate` as it's crucial after `pnpm install`.
-- **Simpler Prisma Commands:** If you have `"prisma": { "schema": "apps/server/prisma/schema.prisma" }` in your **root `package.json`**, then commands like `pnpm prisma generate` and `pnpm prisma migrate dev` can often be run from the root without specifying the schema path, as the Prisma CLI will pick it up.
+- **End-to-End (E2E) Testing:**
+  - Backend E2E:
+    ````bash
+    pnpm nx e2e server-e2e
+    ```    *   Frontend E2E (Playwright):
+    ```bash
+    pnpm nx e2e client-e2e
+    ````
