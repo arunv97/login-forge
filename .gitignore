@@ -52,3 +52,5 @@ test-output
 vite.config.*.timestamp*
 vitest.config.*.timestamp*
 .vscode/extensions.json
+
+.github/instructions/nx.instructions.md
