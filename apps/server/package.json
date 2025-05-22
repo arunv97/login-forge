@@ -41,6 +41,22 @@
           }
         }
       },
+      "serve-dev": {
+        "executor": "nx:run-commands",
+        "options": {
+          "commands": [
+            "docker-compose up -d --wait",
+            "nx serve server"
+          ],
+          "parallel": false
+        }
+      },
+      "stop-db": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "docker-compose down"
+        }
+      },
       "test": {
         "options": {
           "passWithNoTests": true
@@ -52,7 +68,7 @@
       "type:app"
     ]
   },
-   "prisma": {
+  "prisma": {
     "schema": "prisma/schema.prisma"
   }
 }

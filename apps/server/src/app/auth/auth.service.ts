@@ -3,13 +3,19 @@ import {
   ConflictException,
   BadRequestException,
   InternalServerErrorException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { RegisterUserDto } from './dto/register-user.dto';
 import { UserService } from '../user/user.service';
 import * as bcrypt from 'bcrypt';
 import { User as PrismaUser } from '@prisma/client';
-import { RegistrationResponseDto, SafeUserDto } from './dto/auth-reponse.dto';
+import {
+  RegistrationResponseDto,
+  SafeUserDto,
+  LoginResponseDto,
+} from './dto/auth-response.dto';
 import { JwtService } from '@nestjs/jwt';
+import { LoginUserDto } from './dto/login-user.dto';
 
 @Injectable()
 export class AuthService {
@@ -17,11 +23,11 @@ export class AuthService {
 
   constructor(
     private readonly userService: UserService,
-    private readonly jwtService: JwtService,
+    private readonly jwtService: JwtService
   ) {}
 
   async register(
-    registerUserDto: RegisterUserDto,
+    registerUserDto: RegisterUserDto
   ): Promise<RegistrationResponseDto> {
     const { name, email, password, confirmPassword } = registerUserDto;
 
@@ -60,7 +66,11 @@ export class AuthService {
         updatedAt: newUserFromDb.updatedAt,
       };
 
-      const payload = { email: safeUser.email, sub: safeUser.id, name: safeUser.name };
+      const payload = {
+        email: safeUser.email,
+        sub: safeUser.id,
+        name: safeUser.name,
+      };
       const accessToken = this.jwtService.sign(payload);
 
       return {
@@ -73,7 +83,54 @@ export class AuthService {
         throw error;
       }
       console.error('User creation failed in AuthService:', error);
-      throw new InternalServerErrorException('Could not complete registration.');
+      throw new InternalServerErrorException(
+        'Could not complete registration.'
+      );
     }
+  }
+
+  async login(loginUserDto: LoginUserDto): Promise<LoginResponseDto> {
+    const { email, password } = loginUserDto;
+
+    const user = await this.userService.findByEmail(email);
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials.');
+    }
+
+    if (!user.password) {
+      throw new UnauthorizedException(
+        'Login with this method is not permitted for this account.'
+      );
+    }
+
+    const isPasswordMatching = await bcrypt.compare(password, user.password);
+
+    if (!isPasswordMatching) {
+      throw new UnauthorizedException('Invalid credentials.');
+    }
+
+    const safeUser: SafeUserDto = {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      emailVerified: user.emailVerified,
+      provider: user.provider,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
+
+    const payload = {
+      email: safeUser.email,
+      sub: safeUser.id,
+      name: safeUser.name,
+    };
+    const accessToken = this.jwtService.sign(payload);
+
+    return {
+      message: 'User logged in successfully.',
+      user: safeUser,
+      accessToken,
+    };
   }
 }

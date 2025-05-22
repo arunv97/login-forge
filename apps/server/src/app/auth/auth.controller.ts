@@ -2,7 +2,11 @@ import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { RegisterUserDto } from './dto/register-user.dto';
 import { AuthService } from './auth.service';
-import { RegistrationResponseDto } from './dto/auth-reponse.dto';
+import {
+  RegistrationResponseDto,
+  LoginResponseDto,
+} from './dto/auth-response.dto';
+import { LoginUserDto } from './dto/login-user.dto';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -30,8 +34,28 @@ export class AuthController {
     description: 'An internal error occurred.',
   })
   async register(
-    @Body() registerUserDto: RegisterUserDto,
+    @Body() registerUserDto: RegisterUserDto
   ): Promise<RegistrationResponseDto> {
     return this.authService.register(registerUserDto);
+  }
+
+  @Post('login')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Log in an existing user' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'User successfully logged in.',
+    type: LoginResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Invalid credentials or login method not permitted.',
+  })
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: 'An internal error occurred.',
+  })
+  async login(@Body() loginUserDto: LoginUserDto): Promise<LoginResponseDto> {
+    return this.authService.login(loginUserDto);
   }
 }
