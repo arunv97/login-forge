@@ -2,11 +2,14 @@ import {
   Injectable,
   ConflictException,
   InternalServerErrorException,
+  UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '@prisma-setup/prisma.service';
 import { User as PrismaUser } from '@prisma/client';
 import { CreateUserDto } from '@user/dto/create-user.dto';
 import { UpdateUserDto } from '@user/dto/update-user.dto';
+import { UpdatePasswordDto } from '@user/dto/update-password.dto'; // Import new DTO
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import * as bcrypt from 'bcrypt';
 
@@ -84,11 +87,23 @@ export class UserService {
   }
 
   async updateUser(userId: string, data: UpdateUserDto): Promise<PrismaUser> {
+    const updateData: Partial<UpdateUserDto> = {};
+    if (data.name !== undefined) {
+      updateData.name = data.name;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      const currentUser = await this.findById(userId);
+      if (!currentUser)
+        throw new InternalServerErrorException(
+          'User not found for no-op update.'
+        );
+      return currentUser;
+    }
+
     return this.prisma.user.update({
       where: { id: userId },
-      data: {
-        name: data.name,
-      },
+      data: updateData,
     });
   }
 
@@ -110,6 +125,43 @@ export class UserService {
     await this.prisma.user.update({
       where: { id: userId },
       data: { refreshToken: hashedRefreshToken },
+    });
+  }
+
+  async updatePassword(userId: string, data: UpdatePasswordDto): Promise<void> {
+    const { currentPassword, newPassword, confirmNewPassword } = data;
+
+    if (newPassword !== confirmNewPassword) {
+      throw new BadRequestException('New passwords do not match.');
+    }
+
+    const user = await this.findById(userId);
+    if (!user || !user.password) {
+      throw new UnauthorizedException(
+        'User not found or password not set (e.g. OAuth user).'
+      );
+    }
+
+    const isCurrentPasswordMatching = await bcrypt.compare(
+      currentPassword,
+      user.password
+    );
+
+    if (!isCurrentPasswordMatching) {
+      throw new UnauthorizedException('Current password does not match.');
+    }
+
+    let hashedNewPassword;
+    try {
+      hashedNewPassword = await bcrypt.hash(newPassword, this.saltRounds);
+    } catch (error) {
+      console.error('New password hashing failed:', error);
+      throw new InternalServerErrorException('Could not update password.');
+    }
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedNewPassword },
     });
   }
 }

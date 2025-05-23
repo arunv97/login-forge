@@ -18,6 +18,7 @@ import { JwtAuthGuard } from '@auth/jwt-auth.guard';
 import type { Request } from 'express';
 import { SafeUserDto } from '@auth/dto/auth-response.dto';
 import { UpdateUserDto } from '@user/dto/update-user.dto';
+import { UpdatePasswordDto } from '@user/dto/update-password.dto';
 import { UserService } from '@user/user.service';
 import { User as PrismaUser } from '@prisma/client';
 
@@ -79,5 +80,30 @@ export class UserController {
       updatedAt: updatedUserFromDb.updatedAt,
       avatarUrl: updatedUserFromDb.avatarUrl,
     };
+  }
+
+  @Patch('password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Update current authenticated user's password" })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Password updated successfully.',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Unauthorized or current password incorrect.',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description:
+      'Invalid input data (e.g., new passwords do not match, new password too weak).',
+  })
+  async updateCurrentUserPassword(
+    @Req() req: Request,
+    @Body() updatePasswordDto: UpdatePasswordDto
+  ): Promise<{ message: string }> {
+    const userId = (req.user as SafeUserDto).id;
+    await this.userService.updatePassword(userId, updatePasswordDto);
+    return { message: 'Password updated successfully.' };
   }
 }
