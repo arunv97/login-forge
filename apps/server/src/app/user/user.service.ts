@@ -9,7 +9,7 @@ import { PrismaService } from '@prisma-setup/prisma.service';
 import { User as PrismaUser } from '@prisma/client';
 import { CreateUserDto } from '@user/dto/create-user.dto';
 import { UpdateUserDto } from '@user/dto/update-user.dto';
-import { UpdatePasswordDto } from '@user/dto/update-password.dto'; // Import new DTO
+import { UpdatePasswordDto } from '@user/dto/update-password.dto';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import * as bcrypt from 'bcrypt';
 
@@ -162,6 +162,16 @@ export class UserService {
     await this.prisma.user.update({
       where: { id: userId },
       data: { password: hashedNewPassword },
+    });
+  }
+
+  async updateAvatarUrl(
+    userId: string,
+    avatarUrl: string | null
+  ): Promise<PrismaUser> {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { avatarUrl },
     });
   }
 }

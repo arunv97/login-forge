@@ -2,7 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "types": ["node"],
+    "types": ["node", "Multer"],
     "rootDir": "src",
     "tsBuildInfoFile": "dist/tsconfig.app.tsbuildinfo",
     "experimentalDecorators": true,
@@ -14,7 +14,8 @@
       "@auth/*": ["app/auth/*"],
       "@user/*": ["app/user/*"],
       "@prisma-setup/*": ["app/prisma/*"],
-      "@config/*": ["app/config/*"]
+      "@config/*": ["app/config/*"],
+      "@core/*": ["app/core/*"]
     }
   },
   "include": ["src/**/*.ts"],
