@@ -45,10 +45,10 @@ export class UserController {
 
   @Patch('profile')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Update current authenticated user profile' })
+  @ApiOperation({ summary: 'Update current authenticated user profile name' })
   @ApiResponse({
     status: HttpStatus.OK,
-    description: 'User profile updated successfully.',
+    description: 'User profile name updated successfully.',
     type: SafeUserDto,
   })
   @ApiResponse({
@@ -77,6 +77,7 @@ export class UserController {
       provider: updatedUserFromDb.provider,
       createdAt: updatedUserFromDb.createdAt,
       updatedAt: updatedUserFromDb.updatedAt,
+      avatarUrl: updatedUserFromDb.avatarUrl,
     };
   }
 }

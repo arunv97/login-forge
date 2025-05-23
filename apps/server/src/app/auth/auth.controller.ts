@@ -8,11 +8,15 @@ import {
   UseGuards,
   Req,
   Res,
+  createParamDecorator,
+  ExecutionContext,
+  UnauthorizedException, // Import UnauthorizedException
 } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
+  ApiBearerAuth,
   ApiExcludeEndpoint,
 } from '@nestjs/swagger';
 import { RegisterUserDto } from '@auth/dto/register-user.dto';
@@ -20,10 +24,21 @@ import { AuthService } from '@auth/auth.service';
 import {
   RegistrationResponseDto,
   LoginResponseDto,
+  SafeUserDto,
+  RefreshTokenDto,
+  RefreshTokenResponseDto,
 } from '@auth/dto/auth-response.dto';
 import { LoginUserDto } from '@auth/dto/login-user.dto';
+import { JwtAuthGuard } from '@auth/jwt-auth.guard';
 import type { Request, Response } from 'express';
 import { AuthGuard } from '@nestjs/passport';
+
+export const UserFromRequest = createParamDecorator(
+  (data: unknown, ctx: ExecutionContext) => {
+    const request = ctx.switchToHttp().getRequest();
+    return request.user;
+  }
+);
 
 @ApiTags('auth')
 @Controller('auth')
@@ -40,15 +55,11 @@ export class AuthController {
   })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
-    description: 'Invalid input data or passwords do not match.',
+    description: 'Invalid input data.',
   })
   @ApiResponse({
     status: HttpStatus.CONFLICT,
     description: 'Email already exists.',
-  })
-  @ApiResponse({
-    status: HttpStatus.INTERNAL_SERVER_ERROR,
-    description: 'An internal error occurred.',
   })
   async register(
     @Body() registerUserDto: RegisterUserDto
@@ -66,14 +77,47 @@ export class AuthController {
   })
   @ApiResponse({
     status: HttpStatus.UNAUTHORIZED,
-    description: 'Invalid credentials or login method not permitted.',
-  })
-  @ApiResponse({
-    status: HttpStatus.INTERNAL_SERVER_ERROR,
-    description: 'An internal error occurred.',
+    description: 'Invalid credentials.',
   })
   async login(@Body() loginUserDto: LoginUserDto): Promise<LoginResponseDto> {
     return this.authService.login(loginUserDto);
+  }
+
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Refresh an access token' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Access token refreshed.',
+    type: RefreshTokenResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Invalid or expired refresh token.',
+  })
+  async refreshToken(
+    @Body() refreshTokenDto: RefreshTokenDto
+  ): Promise<RefreshTokenResponseDto> {
+    return this.authService.refreshToken(refreshTokenDto.refreshToken);
+  }
+
+  @Post('logout')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Log out current user' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'User successfully logged out.',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Unauthorized.',
+  })
+  async logout(
+    @UserFromRequest() user: SafeUserDto
+  ): Promise<{ message: string }> {
+    return this.authService.logout(user.id);
   }
 
   @Get('google')
@@ -96,7 +140,11 @@ export class AuthController {
   ): Promise<void> {
     const loginResponse = req.user as LoginResponseDto;
 
-    if (!loginResponse || !loginResponse.accessToken) {
+    if (
+      !loginResponse ||
+      !loginResponse.accessToken ||
+      !loginResponse.refreshToken
+    ) {
       const errorFrontendUrl = `${this.authService.configService.get<string>(
         'FRONTEND_URL',
         'http://localhost:4200'
@@ -105,11 +153,14 @@ export class AuthController {
       return;
     }
 
-    const token = loginResponse.accessToken;
+    const accessToken = loginResponse.accessToken;
+    const refreshToken = loginResponse.refreshToken;
     const frontendUrl = this.authService.configService.get<string>(
       'FRONTEND_URL',
       'http://localhost:4200'
     );
-    res.redirect(`${frontendUrl}/auth/oauth-callback?token=${token}`);
+    res.redirect(
+      `${frontendUrl}/auth/oauth-callback?token=${accessToken}&refreshToken=${refreshToken}`
+    );
   }
 }

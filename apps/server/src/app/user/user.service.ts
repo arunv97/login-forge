@@ -1,12 +1,19 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { PrismaService } from '@prisma-setup/prisma.service';
 import { User as PrismaUser } from '@prisma/client';
 import { CreateUserDto } from '@user/dto/create-user.dto';
 import { UpdateUserDto } from '@user/dto/update-user.dto';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UserService {
+  private readonly saltRounds = 10;
+
   constructor(private readonly prisma: PrismaService) {}
 
   async findByEmail(email: string): Promise<PrismaUser | null> {
@@ -45,6 +52,7 @@ export class UserService {
           provider: data.provider || 'local',
           providerId: data.providerId,
           emailVerified: data.provider !== 'local' ? true : false,
+          avatarUrl: null,
         },
       });
       return user;
@@ -60,6 +68,15 @@ export class UserService {
               'This provider account is already linked to a user.'
             );
           }
+          if (target?.includes('refreshToken')) {
+            console.error(
+              'Duplicate refresh token encountered during user creation:',
+              error
+            );
+            throw new InternalServerErrorException(
+              'Failed to store refresh token due to a conflict.'
+            );
+          }
         }
       }
       throw error;
@@ -72,6 +89,27 @@ export class UserService {
       data: {
         name: data.name,
       },
+    });
+  }
+
+  async updateRefreshToken(
+    userId: string,
+    refreshToken: string | null
+  ): Promise<void> {
+    let hashedRefreshToken: string | null = null;
+    if (refreshToken) {
+      try {
+        hashedRefreshToken = await bcrypt.hash(refreshToken, this.saltRounds);
+      } catch (error) {
+        console.error('Refresh token hashing failed:', error);
+        throw new InternalServerErrorException(
+          'Could not process refresh token.'
+        );
+      }
+    }
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { refreshToken: hashedRefreshToken },
     });
   }
 }

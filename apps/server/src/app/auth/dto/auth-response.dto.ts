@@ -1,4 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNotEmpty, IsString } from 'class-validator';
 
 export class SafeUserDto {
   @ApiProperty({ example: 'cl9z0x0000000000000000000', description: 'User ID' })
@@ -32,6 +33,13 @@ export class SafeUserDto {
 
   @ApiProperty({ description: 'User last update timestamp' })
   updatedAt!: Date;
+
+  @ApiProperty({
+    description: 'User avatar URL',
+    nullable: true,
+    required: false,
+  })
+  avatarUrl?: string | null;
 }
 
 export class RegistrationResponseDto {
@@ -44,16 +52,42 @@ export class RegistrationResponseDto {
   @ApiProperty({
     example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
     description: 'Access Token',
-    nullable: true,
-    required: false,
   })
-  accessToken?: string;
+  accessToken!: string;
+
+  @ApiProperty({
+    example: 'djP8z7qL9r1Xo2...',
+    description: 'Refresh Token',
+  })
+  refreshToken!: string;
 }
 
-export class LoginResponseDto extends RegistrationResponseDto {
+export class LoginResponseDto extends RegistrationResponseDto {}
+
+export class RefreshTokenDto {
   @ApiProperty({
-    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-    description: 'Access Token',
+    example: 'djP8z7qL9r1Xo2...',
+    description: 'The refresh token.',
+    required: true,
   })
-  override accessToken!: string;
+  @IsNotEmpty({ message: 'Refresh token should not be empty.' })
+  @IsString()
+  refreshToken!: string;
+}
+
+export interface RefreshTokenResponse {
+  accessToken: string;
+  refreshToken?: string;
+  message: string;
+}
+
+export class RefreshTokenResponseDto implements RefreshTokenResponse {
+  @ApiProperty({ example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' })
+  accessToken!: string;
+
+  @ApiPropertyOptional({ example: 'djP8z7qL9r1Xo2...' })
+  refreshToken?: string;
+
+  @ApiProperty({ example: 'Access token refreshed successfully.' })
+  message!: string;
 }
