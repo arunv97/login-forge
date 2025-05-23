@@ -84,6 +84,11 @@ export class AuthService {
     user: PrismaUser,
     message: string
   ): Promise<LoginResponseDto> {
+    if (user.isDeleted) {
+      // Check if user is soft-deleted before generating tokens
+      throw new UnauthorizedException('This account has been deactivated.');
+    }
+
     const safeUser = this.mapToSafeUser(user);
     const accessTokenPayload: JwtTokenPayload = {
       email: safeUser.email,
@@ -120,8 +125,13 @@ export class AuthService {
       throw new BadRequestException('Passwords do not match.');
     }
 
-    const existingUserByEmail = await this.userService.findByEmail(email);
+    const existingUserByEmail = await this.userService.findByEmail(email, true); // Check even if soft-deleted to prevent re-registration
     if (existingUserByEmail) {
+      if (existingUserByEmail.isDeleted) {
+        throw new ConflictException(
+          `An account with email ${email} was previously registered and is pending permanent deletion. Please contact support if you wish to reactivate it within the grace period or use a different email.`
+        );
+      }
       throw new ConflictException(
         `An account with email ${email} already exists. Try logging in or use a different email.`
       );
@@ -160,10 +170,16 @@ export class AuthService {
 
   async login(loginUserDto: LoginUserDto): Promise<LoginResponseDto> {
     const { email, password } = loginUserDto;
-    const user = await this.userService.findByEmail(email);
+    const user = await this.userService.findByEmail(email, true); // Include soft-deleted to give specific message
 
     if (!user) {
       throw new UnauthorizedException('Invalid credentials.');
+    }
+
+    if (user.isDeleted) {
+      throw new UnauthorizedException(
+        'This account has been deactivated and is pending deletion.'
+      );
     }
 
     if (user.provider !== 'local' || !user.password) {
@@ -190,14 +206,24 @@ export class AuthService {
       googleId
     );
     if (userByGoogleId) {
+      if (userByGoogleId.isDeleted) {
+        throw new UnauthorizedException(
+          'This Google-linked account has been deactivated and is pending deletion.'
+        );
+      }
       return this.generateTokens(
         userByGoogleId,
         'User logged in successfully via Google.'
       );
     }
 
-    const userByEmail = await this.userService.findByEmail(email);
+    const userByEmail = await this.userService.findByEmail(email, true); // Include soft-deleted
     if (userByEmail) {
+      if (userByEmail.isDeleted) {
+        throw new ConflictException(
+          `An account with email ${email} was previously registered and is pending permanent deletion. Please contact support or use a different Google account.`
+        );
+      }
       if (userByEmail.provider === 'local') {
         throw new ConflictException(
           `An account with email ${email} already exists. Please sign in using your email and password.`
@@ -254,11 +280,12 @@ export class AuthService {
     }
 
     const userId = decodedPayload.sub;
-    const user = await this.userService.findById(userId);
+    const user = await this.userService.findById(userId); // findById should NOT return soft-deleted by default
 
-    if (!user || !user.refreshToken) {
+    if (!user || user.isDeleted || !user.refreshToken) {
+      // Added user.isDeleted check
       throw new UnauthorizedException(
-        'Access Denied. User not found or no active refresh session.'
+        'Access Denied. User not found, deactivated, or no active refresh session.'
       );
     }
 
@@ -267,7 +294,6 @@ export class AuthService {
       user.refreshToken
     );
     if (!isRefreshTokenMatching) {
-      // Security measure: If a used refresh token is attempted again, invalidate all tokens for this user.
       await this.userService.updateRefreshToken(userId, null);
       throw new UnauthorizedException(
         'Access Denied. Refresh token mismatch or already used. All sessions logged out.'

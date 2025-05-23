@@ -15,6 +15,7 @@ import {
   FileTypeValidator,
   InternalServerErrorException,
   Logger,
+  Delete,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -31,8 +32,9 @@ import { SafeUserDto } from '@auth/dto/auth-response.dto';
 import { UpdateUserDto } from '@user/dto/update-user.dto';
 import { UpdatePasswordDto } from '@user/dto/update-password.dto';
 import { UserService } from '@user/user.service';
-import { User as PrismaUser } from '@prisma/client';
+import { User as PrismaUser, User } from '@prisma/client';
 import { CloudinaryService } from '@core/cloudinary/cloudinary.service';
+import { UserFromRequest } from '@auth/auth.controller'; // Assuming decorator is in auth.controller
 
 @ApiTags('user')
 @Controller('user')
@@ -57,8 +59,8 @@ export class UserController {
     status: HttpStatus.UNAUTHORIZED,
     description: 'Unauthorized.',
   })
-  getCurrentUserProfile(@Req() req: Request): SafeUserDto {
-    return req.user as SafeUserDto;
+  getCurrentUserProfile(@UserFromRequest() user: SafeUserDto): SafeUserDto {
+    return user;
   }
 
   @Patch('profile')
@@ -78,12 +80,11 @@ export class UserController {
     description: 'Invalid input data.',
   })
   async updateCurrentUserProfile(
-    @Req() req: Request,
+    @UserFromRequest() user: SafeUserDto,
     @Body() updateUserDto: UpdateUserDto
   ): Promise<SafeUserDto> {
-    const userId = (req.user as SafeUserDto).id;
     const updatedUserFromDb: PrismaUser = await this.userService.updateUser(
-      userId,
+      user.id,
       updateUserDto
     );
 
@@ -112,15 +113,13 @@ export class UserController {
   })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
-    description:
-      'Invalid input data (e.g., new passwords do not match, new password too weak).',
+    description: 'Invalid input data.',
   })
   async updateCurrentUserPassword(
-    @Req() req: Request,
+    @UserFromRequest() user: SafeUserDto,
     @Body() updatePasswordDto: UpdatePasswordDto
   ): Promise<{ message: string }> {
-    const userId = (req.user as SafeUserDto).id;
-    await this.userService.updatePassword(userId, updatePasswordDto);
+    await this.userService.updatePassword(user.id, updatePasswordDto);
     return { message: 'Password updated successfully.' };
   }
 
@@ -153,9 +152,7 @@ export class UserController {
 
   @Post('avatar')
   @UseInterceptors(
-    FileInterceptor('avatarFile', {
-      limits: { fileSize: 5 * 1024 * 1024 },
-    })
+    FileInterceptor('avatarFile', { limits: { fileSize: 5 * 1024 * 1024 } })
   )
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -164,12 +161,7 @@ export class UserController {
     required: true,
     schema: {
       type: 'object',
-      properties: {
-        avatarFile: {
-          type: 'string',
-          format: 'binary',
-        },
-      },
+      properties: { avatarFile: { type: 'string', format: 'binary' } },
     },
   })
   @ApiOperation({ summary: "Upload or update current user's avatar" })
@@ -191,7 +183,7 @@ export class UserController {
     description: 'Failed to upload avatar.',
   })
   async uploadAvatar(
-    @Req() req: Request,
+    @UserFromRequest() user: SafeUserDto,
     @UploadedFile(
       new ParseFilePipe({
         validators: [
@@ -203,8 +195,7 @@ export class UserController {
     )
     avatarFile: Express.Multer.File
   ): Promise<SafeUserDto> {
-    const userId = (req.user as SafeUserDto).id;
-    const currentUser = await this.userService.findById(userId);
+    const currentUser = await this.userService.findById(user.id, true); // Get user even if soft-deleted to get avatarUrl
 
     if (!currentUser) {
       throw new InternalServerErrorException('Authenticated user not found.');
@@ -239,11 +230,11 @@ export class UserController {
       uploadResult = await this.cloudinaryService.uploadImage(
         avatarFile.buffer,
         avatarFile.originalname,
-        userId
+        user.id
       );
     } catch (uploadError) {
       this.logger.error(
-        `Cloudinary upload failed for user ${userId}`,
+        `Cloudinary upload failed for user ${user.id}`,
         uploadError
       );
       throw new InternalServerErrorException(
@@ -252,7 +243,7 @@ export class UserController {
     }
 
     const updatedUserFromDb = await this.userService.updateAvatarUrl(
-      userId,
+      user.id,
       uploadResult.secure_url
     );
 
@@ -265,6 +256,27 @@ export class UserController {
       createdAt: updatedUserFromDb.createdAt,
       updatedAt: updatedUserFromDb.updatedAt,
       avatarUrl: updatedUserFromDb.avatarUrl,
+    };
+  }
+
+  @Delete('profile')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Soft delete current authenticated user profile' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'User profile soft deleted successfully.',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Unauthorized.',
+  })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'User not found.' })
+  async softDeleteCurrentUserProfile(
+    @UserFromRequest() user: SafeUserDto
+  ): Promise<{ message: string }> {
+    await this.userService.softDeleteUser(user.id);
+    return {
+      message: 'Your account has been scheduled for deletion and deactivated.',
     };
   }
 }

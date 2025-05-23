@@ -49,8 +49,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       payload.sub
     );
 
-    if (!userFromDb) {
-      throw new UnauthorizedException('User not found or token invalid.');
+    if (!userFromDb || userFromDb.isDeleted) {
+      // Add check for userFromDb.isDeleted
+      throw new UnauthorizedException(
+        'User not found, deactivated, or token invalid.'
+      );
     }
 
     const safeUser: SafeUserDto = {
@@ -61,6 +64,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       provider: userFromDb.provider,
       createdAt: userFromDb.createdAt,
       updatedAt: userFromDb.updatedAt,
+      avatarUrl: userFromDb.avatarUrl,
     };
 
     return safeUser;

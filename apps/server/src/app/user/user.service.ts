@@ -4,38 +4,60 @@ import {
   InternalServerErrorException,
   UnauthorizedException,
   BadRequestException,
+  NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '@prisma-setup/prisma.service';
-import { User as PrismaUser } from '@prisma/client';
+import { User as PrismaUser, Prisma } from '@prisma/client';
 import { CreateUserDto } from '@user/dto/create-user.dto';
 import { UpdateUserDto } from '@user/dto/update-user.dto';
 import { UpdatePasswordDto } from '@user/dto/update-password.dto';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import * as bcrypt from 'bcrypt';
+import { Cron, CronExpression } from '@nestjs/schedule'; // CronExpression is still useful for other predefined values
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class UserService {
   private readonly saltRounds = 10;
+  private readonly logger = new Logger(UserService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService
+  ) {}
 
-  async findByEmail(email: string): Promise<PrismaUser | null> {
-    return this.prisma.user.findUnique({
-      where: { email },
+  async findByEmail(
+    email: string,
+    includeDeleted = false
+  ): Promise<PrismaUser | null> {
+    return this.prisma.user.findFirst({
+      where: {
+        email,
+        isDeleted: includeDeleted ? undefined : false,
+      },
     });
   }
 
-  async findById(id: string): Promise<PrismaUser | null> {
-    return this.prisma.user.findUnique({
+  async findById(
+    id: string,
+    includeDeleted = false
+  ): Promise<PrismaUser | null> {
+    const user = await this.prisma.user.findUnique({
       where: { id },
     });
+    if (user && !includeDeleted && user.isDeleted) {
+      return null;
+    }
+    return user;
   }
 
   async findByProviderId(
     provider: string,
-    providerId: string
+    providerId: string,
+    includeDeleted = false
   ): Promise<PrismaUser | null> {
-    return this.prisma.user.findUnique({
+    const user = await this.prisma.user.findUnique({
       where: {
         provider_providerId: {
           provider,
@@ -43,6 +65,10 @@ export class UserService {
         },
       },
     });
+    if (user && !includeDeleted && user.isDeleted) {
+      return null;
+    }
+    return user;
   }
 
   async create(data: CreateUserDto): Promise<PrismaUser> {
@@ -56,6 +82,8 @@ export class UserService {
           providerId: data.providerId,
           emailVerified: data.provider !== 'local' ? true : false,
           avatarUrl: null,
+          isDeleted: false,
+          deletedAt: null,
         },
       });
       return user;
@@ -87,18 +115,16 @@ export class UserService {
   }
 
   async updateUser(userId: string, data: UpdateUserDto): Promise<PrismaUser> {
+    const user = await this.findById(userId);
+    if (!user) throw new NotFoundException('User not found.');
+
     const updateData: Partial<UpdateUserDto> = {};
     if (data.name !== undefined) {
       updateData.name = data.name;
     }
 
     if (Object.keys(updateData).length === 0) {
-      const currentUser = await this.findById(userId);
-      if (!currentUser)
-        throw new InternalServerErrorException(
-          'User not found for no-op update.'
-        );
-      return currentUser;
+      return user;
     }
 
     return this.prisma.user.update({
@@ -111,6 +137,16 @@ export class UserService {
     userId: string,
     refreshToken: string | null
   ): Promise<void> {
+    const userExists = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+    if (!userExists) {
+      console.warn(
+        `Attempt to update refresh token for non-existent user ID: ${userId}`
+      );
+      return;
+    }
+
     let hashedRefreshToken: string | null = null;
     if (refreshToken) {
       try {
@@ -138,7 +174,7 @@ export class UserService {
     const user = await this.findById(userId);
     if (!user || !user.password) {
       throw new UnauthorizedException(
-        'User not found or password not set (e.g. OAuth user).'
+        'User not found, deactivated, or password not set.'
       );
     }
 
@@ -169,9 +205,100 @@ export class UserService {
     userId: string,
     avatarUrl: string | null
   ): Promise<PrismaUser> {
+    const user = await this.findById(userId);
+    if (!user) throw new NotFoundException('User not found.');
+
     return this.prisma.user.update({
       where: { id: userId },
       data: { avatarUrl },
     });
+  }
+
+  async softDeleteUser(userId: string): Promise<PrismaUser> {
+    const user = await this.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found.');
+    }
+
+    await this.updateRefreshToken(userId, null);
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        isDeleted: true,
+        deletedAt: new Date(),
+        email: `${user.email}_deleted_${Date.now()}`,
+        refreshToken: null,
+      },
+    });
+  }
+
+  async findSoftDeletedUsersForPermanentDeletion(
+    retentionDays: number
+  ): Promise<PrismaUser[]> {
+    const retentionDate = new Date();
+    retentionDate.setDate(retentionDate.getDate() - retentionDays);
+
+    return this.prisma.user.findMany({
+      where: {
+        isDeleted: true,
+        deletedAt: {
+          lte: retentionDate,
+        },
+      },
+    });
+  }
+
+  async permanentlyDeleteUser(userId: string): Promise<void> {
+    await this.prisma.user.delete({
+      where: { id: userId },
+    });
+    this.logger.log(`Permanently deleted user with ID: ${userId}`);
+  }
+
+  @Cron(process.env.USER_DELETION_CRON_SCHEDULE || '0 2 * * *') // Corrected cron string
+  async handlePermanentUserDeletion(): Promise<void> {
+    this.logger.log('Running scheduled task: Permanent User Deletion');
+    const retentionDays = parseInt(
+      this.configService.get<string>('USER_DELETION_RETENTION_DAYS', '5'),
+      10
+    );
+    if (isNaN(retentionDays) || retentionDays <= 0) {
+      this.logger.error(
+        `Invalid USER_DELETION_RETENTION_DAYS: ${this.configService.get<string>(
+          'USER_DELETION_RETENTION_DAYS'
+        )}. Task will not run.`
+      );
+      return;
+    }
+
+    const usersToDelete = await this.findSoftDeletedUsersForPermanentDeletion(
+      retentionDays
+    );
+
+    if (usersToDelete.length === 0) {
+      this.logger.log('No users found for permanent deletion.');
+      return;
+    }
+
+    this.logger.log(
+      `Found ${usersToDelete.length} user(s) for permanent deletion.`
+    );
+    for (const user of usersToDelete) {
+      try {
+        if (user.avatarUrl) {
+          this.logger.log(
+            `Avatar for user ${user.id} (${user.avatarUrl}) was not deleted from cloud storage during permanent deletion. Manual cleanup may be required or implement Cloudinary deletion here.`
+          );
+        }
+        await this.permanentlyDeleteUser(user.id);
+      } catch (error) {
+        this.logger.error(
+          `Failed to permanently delete user ${user.id}:`,
+          error
+        );
+      }
+    }
+    this.logger.log('Scheduled task: Permanent User Deletion finished.');
   }
 }

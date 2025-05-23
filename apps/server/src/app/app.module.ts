@@ -6,10 +6,12 @@ import { PrismaModule } from '@prisma-setup/prisma.module';
 import { UserModule } from '@user/user.module';
 import { ConfigModule } from '@nestjs/config';
 import { CloudinaryModule } from '@core/cloudinary/cloudinary.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
     AuthModule,
     UserModule,
     PrismaModule,
