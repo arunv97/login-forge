@@ -4,7 +4,13 @@
     "outDir": "dist",
     "tsBuildInfoFile": "dist/tsconfig.app.tsbuildinfo",
     "jsx": "react-jsx",
-    "lib": ["dom"],
+    "lib": ["dom", "ES2022", "DOM", "DOM.Iterable"],
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "strict": true,
+    "emitDeclarationOnly": true,
     "types": [
       "node",
       "@nx/react/typings/cssmodule.d.ts",
@@ -14,10 +20,21 @@
     "jsxImportSource": "@emotion/react",
     "rootDir": "src",
     "module": "esnext",
-    "moduleResolution": "bundler"
+    "moduleResolution": "bundler",
+    "baseUrl": "./src",
+    "paths": {
+      "app/*": ["app/*"],
+      "assets/*": ["assets/*"],
+      "common/*": ["common/*"],
+      "features/*": ["features/*"],
+      "mocks/*": ["mocks/*"],
+      // "locales/*": ["locales/*"],
+      // "layout/*": ["layout/*"],
+      "test/*": ["test/*"]
+    }
   },
   "exclude": [
-    "out-tsc",
+    "node_modules",
     "dist",
     "src/**/*.spec.ts",
     "src/**/*.test.ts",
