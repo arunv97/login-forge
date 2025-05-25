@@ -1,0 +1,12 @@
+{
+  "name": "@login-forge/client",
+  "version": "0.0.1",
+  "private": true,
+  "nx": {
+    "name": "client",
+    "tags": [
+      "scope:client",
+      "type:app"
+    ]
+  }
+}
